@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { AppSettings, Coupon, DiscountType, CouponApplicableTo } from '../../types';
 import { formatRupiah, formatDateIndo } from '../../utils/formatters';
@@ -24,13 +24,75 @@ import {
   RefreshCw,
   Info,
   Calculator,
+  Database,
+  Server,
+  Download,
+  Copy,
+  Terminal,
+  CheckCircle,
+  AlertCircle,
+  FolderDown,
 } from 'lucide-react';
 
 export const AdminSettings: React.FC = () => {
-  const { settings, updateSettings, coupons, addCoupon, deleteCoupon, toggleCoupon, applyCouponCode } = useApp();
+  const { settings, updateSettings, coupons, addCoupon, deleteCoupon, toggleCoupon, applyCouponCode, showToast } = useApp();
 
   const [formSettings, setFormSettings] = useState<AppSettings>(settings);
   const [savedSuccess, setSavedSuccess] = useState(false);
+
+  // MySQL & Full-stack Database Status State
+  const [dbStatus, setDbStatus] = useState<{
+    connected: boolean;
+    message: string;
+    config?: { host: string; port: number; user: string; database: string };
+    tables?: { clients: number; invoices: number; services: number; products: number };
+  } | null>(null);
+  const [checkingDb, setCheckingDb] = useState(false);
+  const [initDbLoading, setInitDbLoading] = useState(false);
+  const [showLocalGuide, setShowLocalGuide] = useState(false);
+
+  const checkDb = async () => {
+    setCheckingDb(true);
+    try {
+      const res = await fetch('/api/db/status');
+      const data = await res.json();
+      setDbStatus(data);
+    } catch {
+      setDbStatus({
+        connected: false,
+        message: 'Endpoint server backend lokal sedang memuat.',
+      });
+    } finally {
+      setCheckingDb(false);
+    }
+  };
+
+  useEffect(() => {
+    checkDb();
+  }, []);
+
+  const handleInitDb = async () => {
+    setInitDbLoading(true);
+    try {
+      const res = await fetch('/api/db/init', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message, 'success', 'MySQL Siap!');
+        checkDb();
+      } else {
+        showToast(data.message, 'warning', 'Perhatian MySQL');
+      }
+    } catch {
+      showToast('Gagal memanggil API inisialisasi tabel.', 'error');
+    } finally {
+      setInitDbLoading(false);
+    }
+  };
+
+  const handleDownloadSql = () => {
+    window.open('/api/sql-schema', '_blank');
+    showToast('File database.sql berhasil diunduh / dibuka.', 'info');
+  };
 
   // New Coupon Form with percentage and fixed options
   const [showNewCoupon, setShowNewCoupon] = useState(false);
@@ -128,6 +190,151 @@ export const AdminSettings: React.FC = () => {
             <Check className="w-4 h-4 text-emerald-600" />
             <span>Pengaturan Berhasil Disimpan!</span>
           </span>
+        )}
+      </div>
+
+      {/* MySQL Full-Stack 1 Project Card */}
+      <div className="bg-gradient-to-br from-white via-indigo-50/20 to-slate-50 rounded-2xl border border-indigo-100/90 p-5 sm:p-6 shadow-xs space-y-4 text-xs">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-indigo-100/60 pb-3.5">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-xs">
+              <Database className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-slate-900">Database MySQL (Arsitektur 1 Project)</span>
+                <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-full">
+                  Full-Stack Express + Vite
+                </span>
+              </div>
+              <p className="text-slate-500 text-[11px] mt-0.5">
+                Backend API dan frontend dikemas dalam 1 project tunggal tanpa perlu memisahkan repositori.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleDownloadSql}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 font-semibold border border-slate-200 rounded-xl shadow-2xs transition-colors cursor-pointer"
+              title="Unduh file skema SQL"
+            >
+              <FolderDown className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Download database.sql</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={checkDb}
+              disabled={checkingDb}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${checkingDb ? 'animate-spin' : ''}`} />
+              <span>{checkingDb ? 'Mengecek...' : 'Cek Status'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowLocalGuide(!showLocalGuide)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition-colors cursor-pointer"
+            >
+              <Terminal className="w-3.5 h-3.5" />
+              <span>{showLocalGuide ? 'Tutup Panduan' : 'Panduan Lokal'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Status Display */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="md:col-span-2 p-3.5 bg-white rounded-xl border border-slate-200/80 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-slate-700 flex items-center gap-1.5">
+                <Server className="w-4 h-4 text-indigo-500" />
+                Status Koneksi Database
+              </span>
+              {dbStatus?.connected ? (
+                <span className="flex items-center gap-1 px-2.5 py-1 bg-emerald-100 text-emerald-800 font-bold rounded-lg text-[11px]">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                  MySQL Terhubung
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-200 font-semibold rounded-lg text-[11px]">
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                  Mode Fallback Aktif (Siap Dihubungkan ke MySQL Lokal)
+                </span>
+              )}
+            </div>
+            <p className="text-slate-600 text-[11px] leading-relaxed">
+              {dbStatus?.message || 'Memeriksa status koneksi database MySQL...'}
+            </p>
+
+            {dbStatus?.connected && dbStatus.config && (
+              <div className="pt-2 border-t border-slate-100 flex flex-wrap gap-3 font-mono text-[10px] text-slate-500">
+                <span>Host: <b className="text-slate-700">{dbStatus.config.host}:{dbStatus.config.port}</b></span>
+                <span>User: <b className="text-slate-700">{dbStatus.config.user}</b></span>
+                <span>Database: <b className="text-slate-700">{dbStatus.config.database}</b></span>
+              </div>
+            )}
+          </div>
+
+          <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 flex flex-col justify-between">
+            <div>
+              <span className="font-semibold text-slate-700 block mb-1">Aksi Cepat Database</span>
+              <p className="text-[11px] text-slate-500 mb-2">
+                Buat struktur tabel otomatis langsung dari aplikasi saat MySQL aktif.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleInitDb}
+              disabled={initDbLoading}
+              className="w-full flex items-center justify-center gap-1.5 py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <Database className="w-3.5 h-3.5" />
+              <span>{initDbLoading ? 'Menginisialisasi...' : 'Inisialisasi Tabel Otomatis'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Collapsible Local Setup Guide */}
+        {showLocalGuide && (
+          <div className="p-4 bg-slate-900 text-slate-200 rounded-xl space-y-3 font-mono text-[11px]">
+            <div className="flex items-center justify-between text-slate-300 font-bold border-b border-slate-800 pb-2">
+              <span className="flex items-center gap-1.5 font-sans text-xs">
+                <Terminal className="w-4 h-4 text-emerald-400" />
+                Cara Menjalankan 1 Project ini di Komputer Lokal dengan MySQL:
+              </span>
+              <span className="text-[10px] text-slate-400 font-sans">XAMPP / Laragon / Native MySQL</span>
+            </div>
+
+            <ol className="list-decimal list-inside space-y-2 leading-relaxed text-slate-300 font-sans">
+              <li>
+                <b>Nyalakan MySQL:</b> Buka kontrol panel XAMPP atau Laragon Anda, lalu klik <b>Start MySQL</b>.
+              </li>
+              <li>
+                <b>Buat Database atau Impor:</b> Buka phpMyAdmin (<code>http://localhost/phpmyadmin</code>), buat database bernama <code className="text-amber-300 bg-slate-800 px-1 py-0.5 rounded">billing_nahnuhost</code>, lalu klik menu <b>Import</b> dan pilih file <code className="text-amber-300 bg-slate-800 px-1 py-0.5 rounded">database.sql</code> yang sudah ada di folder proyek ini.
+              </li>
+              <li>
+                <b>Sesuaikan file .env:</b> Di folder proyek, buat/sesuaikan file <code className="text-amber-300 bg-slate-800 px-1 py-0.5 rounded">.env</code>:
+                <pre className="mt-1 p-2 bg-slate-950 rounded-lg text-emerald-400 text-[10px] font-mono">
+{`DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=
+DB_NAME=billing_nahnuhost`}
+                </pre>
+              </li>
+              <li>
+                <b>Jalankan 1 Perintah:</b> Di terminal Anda, cukup ketik:
+                <pre className="mt-1 p-2 bg-slate-950 rounded-lg text-emerald-400 text-[10px] font-mono">
+{`npm install
+npm run dev`}
+                </pre>
+                Server Express API & frontend React otomatis berjalan bersamaan di <code className="text-indigo-300">http://localhost:3000</code>.
+              </li>
+            </ol>
+          </div>
         )}
       </div>
 
