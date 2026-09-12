@@ -1,0 +1,6 @@
+{
+  "name": "WebDev Client & Billing Hub",
+  "description": "Aplikasi manajemen pelanggan, layanan website, akses kredensial, tagihan otomatis, dan portal pembayaran mandiri untuk freelance web developer.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
