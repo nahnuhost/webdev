@@ -1,5 +1,5 @@
 -- ==============================================================================
--- WebDev Client & Billing Hub - Database Schema (MySQL / MariaDB)
+-- WebDev Client & Billing Hub - Complete Database Schema (MySQL / MariaDB)
 -- Siap diimpor ke phpMyAdmin / MySQL CLI
 -- ==============================================================================
 
@@ -30,8 +30,11 @@ CREATE TABLE IF NOT EXISTS `clients` (
   `phone` VARCHAR(30) NOT NULL,
   `password_hash` VARCHAR(255) DEFAULT NULL,
   `address` TEXT DEFAULT NULL,
+  `status` VARCHAR(20) DEFAULT 'active',
+  `segment` VARCHAR(30) DEFAULT 'umkm',
   `notes` TEXT DEFAULT NULL,
   `avatar` VARCHAR(255) DEFAULT NULL,
+  `joined_date` DATE DEFAULT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
@@ -113,6 +116,7 @@ CREATE TABLE IF NOT EXISTS `invoices` (
   `paid_at` TIMESTAMP NULL DEFAULT NULL,
   `notes` TEXT DEFAULT NULL,
   `payment_proof_url` VARCHAR(255) DEFAULT NULL,
+  `items_json` JSON DEFAULT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -123,7 +127,7 @@ CREATE TABLE IF NOT EXISTS `invoice_items` (
   `id` VARCHAR(50) NOT NULL,
   `invoice_id` VARCHAR(50) NOT NULL,
   `description` VARCHAR(255) NOT NULL,
-  `qty` INT DEFAULT 1,
+  `quantity` INT DEFAULT 1,
   `unit_price` DECIMAL(12, 2) NOT NULL,
   `total` DECIMAL(12, 2) NOT NULL,
   PRIMARY KEY (`id`),
@@ -131,44 +135,71 @@ CREATE TABLE IF NOT EXISTS `invoice_items` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------------------------
--- 6. Tabel Payment Transactions (Transaksi Pembayaran QRIS / VA / Bank)
+-- 6. Tabel Orders (Pesanan Layanan & Project Baru)
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `orders` (
+  `id` VARCHAR(50) NOT NULL,
+  `order_number` VARCHAR(50) NOT NULL UNIQUE,
+  `client_id` VARCHAR(50) NOT NULL,
+  `client_name` VARCHAR(150) NOT NULL,
+  `product_id` VARCHAR(50) NOT NULL,
+  `product_name` VARCHAR(150) NOT NULL,
+  `package_id` VARCHAR(50) NOT NULL,
+  `package_name` VARCHAR(100) NOT NULL,
+  `price` DECIMAL(12, 2) NOT NULL,
+  `website_name` VARCHAR(150) NOT NULL,
+  `requested_domain` VARCHAR(150) NOT NULL,
+  `billing_cycle` VARCHAR(20) DEFAULT 'yearly',
+  `status` ENUM('pending_payment', 'in_progress', 'active', 'cancelled') DEFAULT 'pending_payment',
+  `created_at` VARCHAR(50) DEFAULT NULL,
+  `invoice_id` VARCHAR(50) DEFAULT NULL,
+  `notes` TEXT DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  FOREIGN KEY (`client_id`) REFERENCES `clients`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------------------------
+-- 7. Tabel Payment Transactions (Transaksi Pembayaran QRIS / VA / Bank)
 -- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `payment_transactions` (
   `id` VARCHAR(50) NOT NULL,
+  `transaction_number` VARCHAR(50) NOT NULL UNIQUE,
   `invoice_id` VARCHAR(50) NOT NULL,
+  `invoice_number` VARCHAR(50) DEFAULT NULL,
   `client_id` VARCHAR(50) NOT NULL,
+  `client_name` VARCHAR(150) NOT NULL,
   `amount` DECIMAL(12, 2) NOT NULL,
-  `channel` VARCHAR(50) NOT NULL,
-  `payment_type` VARCHAR(50) NOT NULL,
+  `payment_method` VARCHAR(50) NOT NULL,
+  `channel_name` VARCHAR(100) NOT NULL,
   `status` ENUM('pending', 'success', 'failed') DEFAULT 'pending',
-  `reference_code` VARCHAR(100) NOT NULL,
-  `qris_data` TEXT DEFAULT NULL,
-  `va_number` VARCHAR(50) DEFAULT NULL,
-  `bank_name` VARCHAR(50) DEFAULT NULL,
-  `paid_at` TIMESTAMP NULL DEFAULT NULL,
-  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `gateway_ref` VARCHAR(100) DEFAULT NULL,
+  `created_at` VARCHAR(50) DEFAULT NULL,
+  `paid_at` VARCHAR(50) DEFAULT NULL,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`invoice_id`) REFERENCES `invoices`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------------------------
--- 7. Tabel Coupons (Kode Promo Diskon)
+-- 8. Tabel Coupons (Kode Promo Diskon)
 -- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `coupons` (
   `id` VARCHAR(50) NOT NULL,
   `code` VARCHAR(50) NOT NULL UNIQUE,
   `discount_type` ENUM('percentage', 'fixed') DEFAULT 'percentage',
   `discount_value` DECIMAL(12, 2) NOT NULL,
-  `min_purchase` DECIMAL(12, 2) DEFAULT 0,
   `max_discount` DECIMAL(12, 2) DEFAULT NULL,
-  `active` TINYINT(1) DEFAULT 1,
-  `expiry_date` DATE NOT NULL,
+  `min_spend` DECIMAL(12, 2) DEFAULT 0,
+  `applicable_to` VARCHAR(30) DEFAULT 'all',
+  `usage_limit` INT DEFAULT 50,
+  `used_count` INT DEFAULT 0,
+  `is_active` TINYINT(1) DEFAULT 1,
+  `valid_until` DATE NOT NULL,
   `description` VARCHAR(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------------------------
--- 8. Tabel Settings (Pengaturan Brand Developer & Rekening)
+-- 9. Tabel Settings (Pengaturan Brand Developer & Rekening)
 -- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `settings` (
   `key_name` VARCHAR(50) NOT NULL,
@@ -177,44 +208,67 @@ CREATE TABLE IF NOT EXISTS `settings` (
   PRIMARY KEY (`key_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ------------------------------------------------------------------------------
+-- 10. Tabel Activity Logs (Log Aktivitas & Audit Trail)
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `activity_logs` (
+  `id` VARCHAR(50) NOT NULL,
+  `actor` VARCHAR(30) NOT NULL,
+  `actor_name` VARCHAR(100) NOT NULL,
+  `action` VARCHAR(150) NOT NULL,
+  `details` TEXT NOT NULL,
+  `category` VARCHAR(50) DEFAULT 'system',
+  `timestamp` VARCHAR(50) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------------------------
+-- 11. Tabel Notifications (Notifikasi Sistem & Pengingat)
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `notifications` (
+  `id` VARCHAR(50) NOT NULL,
+  `target` VARCHAR(30) NOT NULL,
+  `client_id` VARCHAR(50) DEFAULT NULL,
+  `title` VARCHAR(150) NOT NULL,
+  `message` TEXT NOT NULL,
+  `type` VARCHAR(30) DEFAULT 'info',
+  `timestamp` VARCHAR(50) NOT NULL,
+  `is_read` TINYINT(1) DEFAULT 0,
+  `link_tab` VARCHAR(50) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ==============================================================================
--- DATA AWAL / SEED DATA
+-- SEED DATA AWAL LENGKAP
 -- ==============================================================================
 
--- 1. Admin Default
+-- Admin Default
 INSERT INTO `admins` (`id`, `name`, `email`, `password_hash`, `role`)
 VALUES ('admin-1', 'NahnuHost Developer', 'admin@nahnuhost.com', 'admin123', 'admin')
 ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
 
--- 2. Klien Default
-INSERT INTO `clients` (`id`, `name`, `company`, `email`, `phone`, `password_hash`, `address`, `notes`)
+-- Klien Default
+INSERT INTO `clients` (`id`, `name`, `company`, `email`, `phone`, `password_hash`, `address`, `status`, `segment`, `notes`, `joined_date`)
 VALUES 
-('c-1', 'Budi Santoso', 'Toko Berkah Jaya', 'budi@berkahjaya.com', '6281234567890', 'client123', 'Jl. Malioboro No. 45, Yogyakarta', 'Klien prioritas toko online UMKM'),
-('c-2', 'dr. Hendra Kusuma', 'Klinik Sehat Prima', 'hendra@sehatprima.com', '6281987654321', 'client123', 'Jl. Sudirman No. 12, Jakarta Selatan', 'Klinik spesialis gigi dan estetika'),
-('c-3', 'Siti Rahmawati', 'Rahma Wedding Organizer', 'siti@rahmawo.com', '6285211223344', 'client123', 'Jl. Pemuda No. 88, Semarang', 'Portofolio dan reservasi wedding online')
+('cli-1', 'Budi Santoso', 'Toko Berkah Mandiri', 'budi@tokoberkah.id', '6281298765432', 'client123', 'Jl. Pahlawan No. 12, Bandung, Jawa Barat', 'active', 'umkm', 'Klien e-commerce fashion & herbal', '2025-08-15'),
+('cli-2', 'Siti Rahmah', 'PT Cahaya Abadi Logistik', 'siti@cahayaabadilogistik.com', '6281355588990', 'client123', 'Gedung Wisma Niaga Lt. 4, Surabaya', 'active', 'enterprise', 'Klien corporate logistik ekspor-impor', '2025-04-10'),
+('cli-3', 'dr. Hendro Wijaya', 'Klinik Sehat Medika', 'hendro@sehatmedika.co.id', '6285712349988', 'client123', 'Jl. Boulevard Raya Blok A2, Gading Serpong', 'active', 'enterprise', 'Website reservasi dokter & profil poliklinik', '2025-01-20'),
+('cli-4', 'Dewi Lestari', 'Artha Interior Studio', 'dewi@arthainterior.com', '6281809001122', 'client123', 'Jl. Danau Toba No. 8, Denpasar, Bali', 'active', 'personal', 'Studio desain interior arsitek', '2025-11-05')
 ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
 
--- 3. Produk Website
+-- Produk
 INSERT INTO `products` (`id`, `name`, `category`, `description`, `features`, `badge`, `active`)
 VALUES
-('prod-1', 'Website Company Profile', 'Web Development', 'Solusi website profesional untuk profil perusahaan, UMKM, dan agensi agar kredibel di mata klien.', '["Domain .com gratis 1 tahun", "Desain responsif mobile-friendly", "Integrasi WhatsApp Chat langsung", "Optimasi SEO dasar Google", "Email bisnis nama@perusahaan.com"]', 'Populer', 1),
-('prod-2', 'Website Toko Online (E-Commerce)', 'E-Commerce', 'Website toko online lengkap dengan katalog produk, kalkulator ongkir otomatis, dan checkout WhatsApp.', '["Katalog produk tanpa batas", "Integrasi kurir JNE, J&T, SiCepat", "Checkout WhatsApp otomatis", "Payment gateway QRIS & VA", "Panel admin kelola stok & pesanan"]', 'Rekomendasi', 1),
-('prod-3', 'Cloud VPS & Maintenance Hosting', 'Infrastructure', 'Layanan hosting dedicated, backup berkala harian, update plugin, dan jaminan website selalu uptime.', '["Server SSD NVMe Cloud cepat", "SSL Certificate HTTPS gratis", "Daily automated backup", "Monitoring uptime 24/7", "Pembersihan malware & update sistem"]', 'Best Value', 1)
+('prod-landing', 'Jasa Pembuatan Landing Page', 'website', 'Halaman promosi penjualan single-page berkonversi tinggi, mobile responsive, dan terintegrasi WhatsApp checkout.', '["Single Page High Converting", "Free Domain .com (1 Tahun)", "High Speed Cloud Hosting 1GB", "Copywriting Sales & CTA WhatsApp", "Integrasi Pixel & Google Analytics", "Revisi 2x & Garansi 30 Hari"]', 'Populer', 1),
+('prod-company', 'Website Company Profile', 'website', 'Website resmi perusahaan & bisnis untuk meningkatkan kredibilitas, branding, dan daya tarik partner bisnis.', '["Hingga 5 Halaman Utama", "Free Domain .com / .co.id (1 Tahun)", "Cloud Hosting 5GB SSD CPanel", "3 Akun Email Bisnis Profesional", "CMS WordPress / Admin Dashboard", "SSL Security Certificate"]', 'Rekomendasi', 1),
+('prod-ecommerce', 'Toko Online & E-Commerce', 'website', 'Platform toko online mandiri dengan hitung ongkir otomatis JNE/J&T/SiCepat dan pembayaran otomatis.', '["Katalog produk tanpa batas", "Integrasi kurir JNE, J&T, SiCepat", "Checkout WhatsApp otomatis", "Payment gateway QRIS & VA", "Panel admin kelola stok & pesanan"]', 'Best Value', 1),
+('prod-hosting', 'Managed Hosting & Domain', 'hosting', 'Layanan sewa server cloud cepat dan perpanjangan nama domain dengan dukungan teknis langsung.', '["Storage 10GB Pure NVMe", "Unmetered Bandwidth", "Free SSL Certificate Auto-Renew", "cPanel / DirectAdmin Control Panel", "Daily Automated Backup"]', 'Infrastruktur', 1)
 ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
 
--- 4. Paket Produk
-INSERT INTO `product_packages` (`id`, `product_id`, `name`, `billing_cycle`, `price`, `renewal_price`, `description`, `popular`)
+-- Kupon
+INSERT INTO `coupons` (`id`, `code`, `discount_type`, `discount_value`, `max_discount`, `min_spend`, `applicable_to`, `usage_limit`, `used_count`, `is_active`, `valid_until`, `description`)
 VALUES
-('pkg-1a', 'prod-1', 'Paket Starter Profile', 'yearly', 1500000, 600000, 'Cocok untuk bisnis rintisan yang ingin segera tampil di Google', 0),
-('pkg-1b', 'prod-1', 'Paket Professional Company', 'yearly', 2500000, 850000, 'Solusi lengkap dengan 5 halaman custom dan integrasi email bisnis', 1),
-('pkg-2a', 'prod-2', 'Paket UMKM Toko Online', 'yearly', 3200000, 1100000, 'Lengkap dengan katalog, hitung ongkir otomatis & pembayaran', 1),
-('pkg-3a', 'prod-3', 'Paket Maintenance & Hosting Premium', 'yearly', 950000, 950000, 'Perawatan website dan server selama 1 tahun penuh', 0)
-ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
-
--- 5. Kupon Promo
-INSERT INTO `coupons` (`id`, `code`, `discount_type`, `discount_value`, `min_purchase`, `max_discount`, `active`, `expiry_date`, `description`)
-VALUES
-('cp-1', 'HEMAT10', 'percentage', 10, 500000, 300000, 1, '2027-12-31', 'Diskon 10% untuk pesanan website baru'),
-('cp-2', 'POTONGAN100K', 'fixed', 100000, 1000000, NULL, 1, '2027-12-31', 'Potongan langsung Rp 100.000'),
-('cp-3', 'RESELLERVIP', 'percentage', 20, 2000000, 800000, 1, '2027-12-31', 'Diskon 20% khusus langganan reseller/partner')
+('cp-1', 'DISKONWEB10', 'percentage', 10, 300000, 1500000, 'all', 50, 14, 1, '2027-12-31', 'Diskon 10% untuk semua layanan web & perpanjangan (Maks. Rp 300rb)'),
+('cp-2', 'SETIA2026', 'percentage', 15, 500000, 1500000, 'renewal', 30, 8, 1, '2027-12-31', 'Diskon 15% khusus perpanjangan domain & hosting tahunan'),
+('cp-3', 'HEMAT250K', 'fixed', 250000, 250000, 1500000, 'all', 40, 15, 1, '2027-12-31', 'Potongan langsung Rp 250.000 untuk pembelian atau perpanjangan')
 ON DUPLICATE KEY UPDATE `code` = VALUES(`code`);
